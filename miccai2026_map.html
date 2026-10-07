@@ -972,7 +972,7 @@ document.addEventListener('click', (e)=>{
   container.addEventListener('mousemove', (e)=>{
     if (downX !== null) {
       const dx = e.clientX - downX, dy = e.clientY - downY;
-      if (Math.sqrt(dx*dx + dy*dy) > 5) isDragging = true;
+      if (Math.sqrt(dx*dx + dy*dy) > 1) isDragging = true;
     }
   });
   container.addEventListener('mouseup', ()=>{ setTimeout(()=>{ downX=null; downY=null; }, 100); });
