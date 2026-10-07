@@ -962,6 +962,92 @@ document.addEventListener('click', (e)=>{
 })();
 </script>
 
+
+<script>
+(function(){
+  let downX = null, downY = null, isDragging = false;
+  const container = document.getElementById('deck-container');
+  if (!container) return;
+  container.addEventListener('mousedown', (e)=>{ downX = e.clientX; downY = e.clientY; isDragging = false; });
+  container.addEventListener('mousemove', (e)=>{
+    if (downX !== null) {
+      const dx = e.clientX - downX, dy = e.clientY - downY;
+      if (Math.sqrt(dx*dx + dy*dy) > 5) isDragging = true;
+    }
+  });
+  container.addEventListener('mouseup', ()=>{ setTimeout(()=>{ downX=null; downY=null; }, 100); });
+  // Patch the datamap onClick to check isDragging
+  function patchClick(){
+    if (!window.datamap || !window.datamap.deckgl) { setTimeout(patchClick, 500); return; }
+    const deck = window.datamap.deckgl;
+    const origOnClick = deck.props.onClick;
+    // Wrap to check dragging
+    deck.setProps({
+      onClick: (info, event) => {
+        if (isDragging) {
+          console.log('Click ignored due to drag');
+          isDragging = false;
+          return;
+        }
+        // Call original handler if exists (our modal handler)
+        if (origOnClick) {
+          try { origOnClick(info, event); } catch(e){ console.error(e); }
+        } else {
+          // Fallback: our custom handler from previous patch
+          // Try to find the handler we injected earlier (it sets modal)
+          // For now, just trigger the modal logic directly if info has index
+          if (info && info.index !== undefined && info.index >= 0 && info.picked) {
+            const idx = info.index;
+            const hoverData = window.datamap.metaData;
+            if (hoverData && idx < hoverData.title_clean.length) {
+              const modal = document.getElementById('paper-modal');
+              if (modal) {
+                const html = `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; width: 750px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); overflow: hidden; color: #0f172a; text-align: left; position: relative;">
+    <div style="position: absolute; top: 0; left: 0; bottom: 0; width: 58%; padding: 20px; overflow-y: auto; box-sizing: border-box;">
+        <h2 style="margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: #1e293b; line-height: 1.3;"><a href="https://papers.miccai.org/miccai-2026/paper/${String(hoverData.pid[idx]).padStart(4,"0")}_paper.pdf" target="_blank" style="color:#1e293b; text-decoration:none; border-bottom:1px dashed #94a3b8;">${hoverData.title_clean[idx]} ↗</a></h2>
+        <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 6px;">${hoverData.authors_short[idx]}</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;">
+            <div style="background-color: #0ea5e9; color: #fff; border-radius: 6px; padding: 2px 10px; font-size: 7pt; font-weight: 600;">${hoverData.theme_name[idx]}</div>
+            <div style="background-color: #8b5cf6; color: #fff; border-radius: 6px; padding: 2px 10px; font-size: 7pt; font-weight: 600;">${hoverData.cluster_name[idx]}</div>
+        </div>
+        <div style="font-size: 11px; font-weight: 700; color: #0ea5e9; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">Abstract</div>
+        <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #334155; text-align: justify;">${hoverData.abstract_short[idx]}</p>
+        <div style="margin-top: 10px; font-size: 10px; color: #94a3b8;">PID ${hoverData.pid[idx]} | ${hoverData.authors_short[idx]}</div>
+    </div>
+    <div style="margin-left: 58%; width: 42%; padding: 20px; background-color: #f8fafc; border-left: 1px solid #e2e8f0; box-sizing: border-box;">
+        <div style="margin-bottom: 14px;">
+            <div style="font-size: 12px; font-weight: 700; color: #0ea5e9; margin-bottom: 6px;">Theme</div>
+            <p style="margin: 0; font-size: 12px; line-height: 1.4; color: #0f172a; font-weight: 600;">${hoverData.theme_name[idx]}</p>
+            <p style="margin: 4px 0 0 0; font-size: 11px; line-height: 1.4; color: #475569;">${hoverData.theme_description[idx]}</p>
+        </div>
+        <div style="margin-bottom: 14px;">
+            <div style="font-size: 12px; font-weight: 700; color: #8b5cf6; margin-bottom: 6px;">Cluster</div>
+            <p style="margin: 0; font-size: 12px; line-height: 1.4; color: #0f172a; font-weight: 600;">${hoverData.cluster_name[idx]}</p>
+            <p style="margin: 4px 0 0 0; font-size: 11px; line-height: 1.4; color: #475569;">${hoverData.cluster_description[idx]}</p>
+        </div>
+        <div style="font-size: 10px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 8px;">
+            UMAP: (${hoverData.umap_x[idx]}, ${hoverData.umap_y[idx]})<br>
+            Density: ${hoverData.density_score[idx]}<br><br>
+            <a href="https://papers.miccai.org/miccai-2026/paper/${String(hoverData.pid[idx]).padStart(4,"0")}_paper.pdf" target="_blank" style="display:inline-block; background:#0ea5e9; color:#fff; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none;">Open Paper PDF ↗</a>
+            <a href="https://papers.miccai.org/miccai-2026/${hoverData.filename[idx]}" target="_blank" style="display:inline-block; margin-left:6px; background:#f1f5f9; color:#0f172a; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:600; text-decoration:none; border:1px solid #e2e8f0;">Info Page</a>
+        </div>
+    </div>
+</div>`;
+              modal.innerHTML = '<button class="close-btn" onclick="this.parentElement.style.display='none'" style="position:absolute; top:8px; right:10px; background:#f1f5f9; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; font-size:16px;">✕</button>' + html;
+              modal.style.display = 'block';
+              window.open(`https://papers.miccai.org/miccai-2026/paper/${String(hoverData.pid[idx]).padStart(4,"0")}_paper.pdf`, '_blank');
+            }
+          }
+        }
+      }
+    });
+    console.log("Patched onClick with drag check");
+  }
+  patchClick();
+})();
+</script>
+
 </body>
   <script>
     LAYER_ORDER=['imageLayer','densityOverviewLayer','dataPointLayer','hexagonLayer','boundaryLayer','labelLayer'];function getLayerIndex(object){const idx=LAYER_ORDER.indexOf(object.id);if(idx!==-1)return idx;for(let i=0;i<LAYER_ORDER.length;i++){if(object.id.startsWith(LAYER_ORDER[i]))return i;}
